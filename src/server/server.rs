@@ -1,6 +1,6 @@
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tonic::{transport::Server, Request, Response, Status};
+use tonic::{codegen::CompressionEncoding, transport::Server, Request, Response, Status};
 use torsen::torsen_api::{
     torsen_api_server::{TorsenApi, TorsenApiServer},
     HeartbeatReq, HeartbeatRsp,
@@ -28,9 +28,9 @@ impl TorsenApi for TorsenServer {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = "[::1]:50051".parse()?;
     let server = TorsenServer::default();
-    Server::builder()
-        .add_service(TorsenApiServer::new(server))
-        .serve(addr)
-        .await?;
+    let service = TorsenApiServer::new(server)
+        .send_compressed(CompressionEncoding::Gzip)
+        .accept_compressed(CompressionEncoding::Gzip);
+    Server::builder().add_service(service).serve(addr).await?;
     Ok(())
 }
