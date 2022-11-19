@@ -21,6 +21,8 @@ message HeartbeatRsp {
         // 打印日志
         PRINT = 1;
     }
+    // 指令类型
     CmdType cmd_type = 1;
+    // 指令内容
     string cmd_content = 2;
 }
