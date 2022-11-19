@@ -1,0 +1,26 @@
+syntax = "proto3";
+package torsen;
+
+service Torsen {
+    rpc Heartbeat(HeartbeatReq) returns (stream HeartbeatRsp) {}
+}
+
+// 心跳消息请求结构体
+message HeartbeatReq {
+    // agent唯一编号，必填
+    string agent_id = 1;
+    // agent类型，必填
+    string agent_type = 2;
+}
+
+message HeartbeatRsp {
+    // 指令类型枚举
+    enum CmdType {
+        // 啥也不干
+        NOTHING = 0;
+        // 打印日志
+        PRINT = 1;
+    }
+    CmdType cmd_type = 1;
+    string cmd_content = 2;
+}
