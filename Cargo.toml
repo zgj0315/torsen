@@ -1,0 +1,19 @@
+[package]
+edition = "2021"
+name = "tousen"
+version = "0.1.0"
+
+[[bin]]
+name = "torsen-server"
+path = "src/server.rs"
+
+[[bin]]
+name = "torsen-client"
+path = "src/client.rs"
+
+[dependencies]
+prost = "0.11"
+tonic = "0.8"
+
+[build-dependencies]
+tonic-build = "0.8"
