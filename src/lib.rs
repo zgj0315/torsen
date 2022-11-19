@@ -1,3 +1,3 @@
-pub mod torsen {
-    tonic::include_proto!("torsen");
+pub mod torsen_api {
+    tonic::include_proto!("torsen.api");
 }

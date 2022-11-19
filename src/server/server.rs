@@ -1,16 +1,16 @@
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{transport::Server, Request, Response, Status};
-use torsen::torsen::{
-    torsen_server::{Torsen, TorsenServer},
+use torsen::torsen_api::{
+    torsen_api_server::{TorsenApi, TorsenApiServer},
     HeartbeatReq, HeartbeatRsp,
 };
 
 #[derive(Debug, Default)]
-struct TorsenService {}
+struct TorsenServer {}
 
 #[tonic::async_trait]
-impl Torsen for TorsenService {
+impl TorsenApi for TorsenServer {
     type HeartbeatStream = ReceiverStream<Result<HeartbeatRsp, Status>>;
     async fn heartbeat(
         &self,
@@ -27,9 +27,9 @@ impl Torsen for TorsenService {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = "[::1]:50051".parse()?;
-    let service = TorsenService::default();
+    let server = TorsenServer::default();
     Server::builder()
-        .add_service(TorsenServer::new(service))
+        .add_service(TorsenApiServer::new(server))
         .serve(addr)
         .await?;
     Ok(())
