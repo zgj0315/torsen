@@ -1,11 +1,18 @@
-use tokio::sync::mpsc;
-use tokio_rustls::rustls::{Certificate, PrivateKey, ServerConfig};
+use std::sync::Arc;
+
+use hyper::server::conn::Http;
+use tokio::{net::TcpListener, sync::mpsc};
+use tokio_rustls::{
+    rustls::{Certificate, PrivateKey, ServerConfig},
+    TlsAcceptor,
+};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{codegen::CompressionEncoding, transport::Server, Request, Response, Status};
 use torsen::torsen_api::{
     torsen_api_server::{TorsenApi, TorsenApiServer},
     HeartbeatReq, HeartbeatRsp,
 };
+use tower_http::ServiceBuilderExt;
 
 #[derive(Debug, Default)]
 struct TorsenServer {}
@@ -49,13 +56,51 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_no_client_auth()
         .with_single_cert(certs, key)?;
 
-        tls.alpn_protocols = vec![b"h2".to_vec()];
-
-    let addr = "[::1]:50051".parse()?;
+    tls.alpn_protocols = vec![b"h2".to_vec()];
     let server = TorsenServer::default();
     let service = TorsenApiServer::new(server)
         .send_compressed(CompressionEncoding::Gzip)
         .accept_compressed(CompressionEncoding::Gzip);
-    Server::builder().add_service(service).serve(addr).await?;
-    Ok(())
+
+    let svc = Server::builder().add_service(service).into_service();
+    let mut http = Http::new();
+    http.http2_only(true);
+    let listener = TcpListener::bind("[::1]:50051").await?;
+    let tls_acceptor = TlsAcceptor::from(Arc::new(tls));
+
+    loop {
+        let (conn, addr) = match listener.accept().await {
+            Ok(incoming) => incoming,
+            Err(e) => {
+                eprint!("Error accepting connection: {}", e);
+                continue;
+            }
+        };
+        let http = http.clone();
+        let tls_acceptor = tls_acceptor.clone();
+        let svc = svc.clone();
+        tokio::spawn(async move {
+            let mut certificates = Vec::new();
+            let conn = tls_acceptor
+                .accept_with(conn, |info| {
+                    if let Some(certs) = info.peer_certificates() {
+                        for cert in certs {
+                            certificates.push(cert.clone());
+                        }
+                    }
+                })
+                .await
+                .unwrap();
+            let svc = tower::ServiceBuilder::new()
+                .add_extension(Arc::new(ConnInfo { addr, certificates }))
+                .service(svc);
+            http.serve_connection(conn, svc).await.unwrap();
+        });
+    }
+}
+
+#[derive(Debug)]
+struct ConnInfo {
+    addr: std::net::SocketAddr,
+    certificates: Vec<Certificate>,
 }
