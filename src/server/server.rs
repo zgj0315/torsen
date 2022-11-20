@@ -100,6 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct ConnInfo {
     addr: std::net::SocketAddr,
     certificates: Vec<Certificate>,
