@@ -1,4 +1,5 @@
 use tokio::sync::mpsc;
+use tokio_rustls::rustls::{Certificate, PrivateKey, ServerConfig};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{codegen::CompressionEncoding, transport::Server, Request, Response, Status};
 use torsen::torsen_api::{
@@ -26,6 +27,30 @@ impl TorsenApi for TorsenServer {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let certs = {
+        let cert_file = std::fs::File::open("tls/torsen-ca.crt")?;
+        let mut cert_buf = std::io::BufReader::new(&cert_file);
+        rustls_pemfile::certs(&mut cert_buf)?
+            .into_iter()
+            .map(Certificate)
+            .collect()
+    };
+    let key = {
+        let key_file = std::fs::File::open("tls/torsen-ca.key")?;
+        let mut key_buf = std::io::BufReader::new(&key_file);
+        rustls_pemfile::pkcs8_private_keys(&mut key_buf)?
+            .into_iter()
+            .map(PrivateKey)
+            .next()
+            .unwrap()
+    };
+    let mut tls = ServerConfig::builder()
+        .with_safe_defaults()
+        .with_no_client_auth()
+        .with_single_cert(certs, key)?;
+
+        tls.alpn_protocols = vec![b"h2".to_vec()];
+
     let addr = "[::1]:50051".parse()?;
     let server = TorsenServer::default();
     let service = TorsenApiServer::new(server)

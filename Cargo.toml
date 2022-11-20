@@ -13,7 +13,9 @@ path = "src/client/client.rs"
 
 [dependencies]
 prost = "0.11"
+rustls-pemfile = "1.0"
 tokio = {version = "1.22", features = ["rt-multi-thread"]}
+tokio-rustls = "0.23"
 tokio-stream = "0.1"
 tonic = {version = "0.8", features = ["gzip"]}
 
