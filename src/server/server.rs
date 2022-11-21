@@ -13,6 +13,7 @@ use torsen::torsen_api::{
     HeartbeatReq, HeartbeatRsp,
 };
 use tower_http::ServiceBuilderExt;
+use tracing::Level;
 
 #[derive(Debug, Default)]
 struct TorsenServer {}
@@ -24,7 +25,7 @@ impl TorsenApi for TorsenServer {
         &self,
         request: Request<HeartbeatReq>,
     ) -> Result<Response<Self::HeartbeatStream>, Status> {
-        println!("request: {:?}", request);
+        log::info!("request: {:?}", request);
         let (tx, rx) = mpsc::channel(10);
         let response = HeartbeatRsp::default();
         tx.send(Ok(response)).await.unwrap();
@@ -34,6 +35,21 @@ impl TorsenApi for TorsenServer {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let file_appender = tracing_appender::rolling::daily("log", "tracing.log");
+    let (non_blocking, _guart) = tracing_appender::non_blocking(file_appender);
+    let format = tracing_subscriber::fmt::format()
+        .with_level(true)
+        .with_target(true)
+        .with_thread_ids(true)
+        .with_thread_names(true);
+
+    tracing_subscriber::fmt()
+        .with_max_level(Level::TRACE)
+        .with_writer(non_blocking)
+        .with_ansi(false)
+        .event_format(format)
+        .init();
+
     let certs = {
         let cert_file = std::fs::File::open("tls/torsen-ca.crt")?;
         let mut cert_buf = std::io::BufReader::new(&cert_file);
@@ -55,24 +71,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_safe_defaults()
         .with_no_client_auth()
         .with_single_cert(certs, key)?;
-
     tls.alpn_protocols = vec![b"h2".to_vec()];
     let server = TorsenServer::default();
     let service = TorsenApiServer::new(server)
         .send_compressed(CompressionEncoding::Gzip)
         .accept_compressed(CompressionEncoding::Gzip);
-
     let svc = Server::builder().add_service(service).into_service();
     let mut http = Http::new();
     http.http2_only(true);
     let listener = TcpListener::bind("[::1]:50051").await?;
     let tls_acceptor = TlsAcceptor::from(Arc::new(tls));
-
+    log::info!("Torsen Server is running...");
     loop {
         let (conn, addr) = match listener.accept().await {
             Ok(incoming) => incoming,
             Err(e) => {
-                eprint!("Error accepting connection: {}", e);
+                log::error!("Error accepting connection: {}", e);
                 continue;
             }
         };
