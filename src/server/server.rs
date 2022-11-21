@@ -25,7 +25,7 @@ impl TorsenApi for TorsenServer {
         &self,
         request: Request<HeartbeatReq>,
     ) -> Result<Response<Self::HeartbeatStream>, Status> {
-        println!("request: {:?}", request);
+        log::info!("request: {:?}", request);
         let (tx, rx) = mpsc::channel(10);
         let response = HeartbeatRsp::default();
         tx.send(Ok(response)).await.unwrap();
@@ -57,24 +57,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_safe_defaults()
         .with_no_client_auth()
         .with_single_cert(certs, key)?;
-
     tls.alpn_protocols = vec![b"h2".to_vec()];
     let server = TorsenServer::default();
     let service = TorsenApiServer::new(server)
         .send_compressed(CompressionEncoding::Gzip)
         .accept_compressed(CompressionEncoding::Gzip);
-
     let svc = Server::builder().add_service(service).into_service();
     let mut http = Http::new();
     http.http2_only(true);
     let listener = TcpListener::bind("[::1]:50051").await?;
     let tls_acceptor = TlsAcceptor::from(Arc::new(tls));
-
+    log::info!("Torsen Server is running...");
     loop {
         let (conn, addr) = match listener.accept().await {
             Ok(incoming) => incoming,
             Err(e) => {
-                eprint!("Error accepting connection: {}", e);
+                log::error!("Error accepting connection: {}", e);
                 continue;
             }
         };
