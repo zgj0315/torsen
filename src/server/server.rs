@@ -13,6 +13,7 @@ use torsen::torsen_api::{
     HeartbeatReq, HeartbeatRsp,
 };
 use tower_http::ServiceBuilderExt;
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(Debug, Default)]
 struct TorsenServer {}
@@ -34,6 +35,7 @@ impl TorsenApi for TorsenServer {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing_subscriber::registry().with(fmt::layer()).init();
     let certs = {
         let cert_file = std::fs::File::open("tls/torsen-ca.crt")?;
         let mut cert_buf = std::io::BufReader::new(&cert_file);
