@@ -2,11 +2,24 @@ use hyper::{client::HttpConnector, Uri};
 use tokio_rustls::rustls::{ClientConfig, RootCertStore};
 use tonic::codegen::CompressionEncoding;
 use torsen::torsen_api::{torsen_api_client::TorsenApiClient, HeartbeatReq};
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing::Level;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::registry().with(fmt::layer()).init();
+    let file_appender = tracing_appender::rolling::daily("log", "tracing.log");
+    let (non_blocking, _guart) = tracing_appender::non_blocking(file_appender);
+    let format = tracing_subscriber::fmt::format()
+        .with_level(true)
+        .with_target(true)
+        .with_thread_ids(true)
+        .with_thread_names(true);
+
+    tracing_subscriber::fmt()
+        .with_max_level(Level::TRACE)
+        .with_writer(non_blocking)
+        .with_ansi(false)
+        .event_format(format)
+        .init();
     let cert_file = std::fs::File::open("tls/sub-ca.crt")?;
     let mut cert_buf = std::io::BufReader::new(&cert_file);
     let mut roots = RootCertStore::empty();
