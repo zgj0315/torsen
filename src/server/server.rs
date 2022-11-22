@@ -25,18 +25,33 @@ impl TorsenApi for TorsenServer {
         &self,
         request: Request<HeartbeatReq>,
     ) -> Result<Response<Self::HeartbeatStream>, Status> {
-        log::info!("request: {:?}", request);
         let (tx, rx) = mpsc::channel(10);
-        let response = HeartbeatRsp::default();
-        tx.send(Ok(response)).await.unwrap();
+        let heartbeat_req = request.into_inner();
+        log::info!("heartbeat_req: {:?}", heartbeat_req);
+        let cmd_content = format!(
+            "agent_id: {}, agent_type: {}",
+            heartbeat_req.agent_id.to_owned(),
+            heartbeat_req.agent_type.to_owned()
+        );
+        tokio::spawn(async move {
+            for i in 0..10 {
+                let response = HeartbeatRsp {
+                    cmd_type: i % 2,
+                    cmd_content: cmd_content.clone(),
+                };
+                log::info!("send response: {:?}", response);
+                tx.send(Ok(response)).await.unwrap();
+                tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+            }
+        });
         Ok(Response::new(ReceiverStream::new(rx)))
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let file_appender = tracing_appender::rolling::daily("log", "tracing.log");
-    let (non_blocking, _guart) = tracing_appender::non_blocking(file_appender);
+    // let file_appender = tracing_appender::rolling::daily("log", "server.log");
+    // let (non_blocking, _guart) = tracing_appender::non_blocking(file_appender);
     let format = tracing_subscriber::fmt::format()
         .with_level(true)
         .with_target(true)
@@ -44,8 +59,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_thread_names(true);
 
     tracing_subscriber::fmt()
-        .with_max_level(Level::TRACE)
-        .with_writer(non_blocking)
+        .with_max_level(Level::INFO)
+        // .with_writer(non_blocking)
+        .with_writer(std::io::stdout)
         .with_ansi(false)
         .event_format(format)
         .init();

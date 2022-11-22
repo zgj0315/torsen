@@ -6,8 +6,8 @@ use tracing::Level;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let file_appender = tracing_appender::rolling::daily("log", "tracing.log");
-    let (non_blocking, _guart) = tracing_appender::non_blocking(file_appender);
+    // let file_appender = tracing_appender::rolling::daily("log", "client.log");
+    // let (non_blocking, _guart) = tracing_appender::non_blocking(file_appender);
     let format = tracing_subscriber::fmt::format()
         .with_level(true)
         .with_target(true)
@@ -15,8 +15,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_thread_names(true);
 
     tracing_subscriber::fmt()
-        .with_max_level(Level::TRACE)
-        .with_writer(non_blocking)
+        .with_max_level(Level::INFO)
+        // .with_writer(non_blocking)
+        .with_writer(std::io::stdout)
         .with_ansi(false)
         .event_format(format)
         .init();
@@ -50,9 +51,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = TorsenApiClient::with_origin(client, uri)
         .send_compressed(CompressionEncoding::Gzip)
         .accept_compressed(CompressionEncoding::Gzip);
+    for i in 0..1000 {
+        let agent_id = format!("agent_id_{}", i);
+        let agent_type = format!("agent_type_{}", i);
+        let request = HeartbeatReq {
+            agent_id,
+            agent_type,
+        };
+        let mut stream = client.heartbeat(request).await?.into_inner();
+        while let Some(feature) = stream.message().await? {
+            log::info!("{:?}", feature);
+        }
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    }
 
-    let request = HeartbeatReq::default();
-    let response = client.heartbeat(request).await?;
-    log::info!("response: {:?}", response);
     Ok(())
 }
