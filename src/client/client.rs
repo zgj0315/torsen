@@ -15,10 +15,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_thread_names(true);
 
     tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
+        .with_max_level(Level::TRACE)
         // .with_writer(non_blocking)
         .with_writer(std::io::stdout)
-        .with_ansi(false)
+        // .with_ansi(false)
         .event_format(format)
         .init();
     let cert_file = std::fs::File::open("tls/sub-ca.crt")?;
@@ -51,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = TorsenApiClient::with_origin(client, uri)
         .send_compressed(CompressionEncoding::Gzip)
         .accept_compressed(CompressionEncoding::Gzip);
-    for i in 0..1000 {
+    for i in 0..3 {
         let agent_id = format!("agent_id_{}", i);
         let agent_type = format!("agent_type_{}", i);
         let request = HeartbeatReq {
@@ -64,6 +64,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     }
-
     Ok(())
 }

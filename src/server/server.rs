@@ -34,7 +34,7 @@ impl TorsenApi for TorsenServer {
             heartbeat_req.agent_type.to_owned()
         );
         tokio::spawn(async move {
-            for i in 0..10 {
+            for i in 0..2 {
                 let response = HeartbeatRsp {
                     cmd_type: i % 2,
                     cmd_content: cmd_content.clone(),
@@ -59,10 +59,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_thread_names(true);
 
     tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
+        .with_max_level(Level::TRACE)
         // .with_writer(non_blocking)
         .with_writer(std::io::stdout)
-        .with_ansi(false)
+        // .with_ansi(false)
         .event_format(format)
         .init();
 
@@ -124,7 +124,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let svc = tower::ServiceBuilder::new()
                 .add_extension(Arc::new(ConnInfo { addr, certificates }))
                 .service(svc);
-            http.serve_connection(conn, svc).await.unwrap();
+            match http.serve_connection(conn, svc).await {
+                Ok(r) => {
+                    log::info!("connection: {:?}", r);
+                }
+                Err(e) => {
+                    log::error!("http server error: {:?}", e)
+                }
+            }
         });
     }
 }
