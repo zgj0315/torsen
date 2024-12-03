@@ -49,7 +49,7 @@ impl TorsenApi for TorsenServer {
         Ok(Response::new(ReceiverStream::new(rx)))
     }
 
-    async fn rpc_fn(&self, request: Request<RpcFnReq>) -> Result<Response<RpcFnRsp>, Status> {
+    async fn rpc_fn_c2s(&self, request: Request<RpcFnReq>) -> Result<Response<RpcFnRsp>, Status> {
         match request.into_inner().req {
             None => {
                 return Ok(Response::new(RpcFnRsp { rsp: None }));

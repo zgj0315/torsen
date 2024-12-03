@@ -26,7 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rpc_fn_req = RpcFnReq {
         req: Some(rpc_fn_req::Req::ReqFn001(req_fn_001.into())),
     };
-    let rsp = client.rpc_fn(rpc_fn_req).await?;
+    let rsp = client.rpc_fn_c2s(rpc_fn_req).await?;
     log::info!("rpc fn 001 rsp: {:?}", rsp);
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rpc_fn_req = RpcFnReq {
         req: Some(rpc_fn_req::Req::ReqFn002(req_fn_002)),
     };
-    let rsp = client.rpc_fn(rpc_fn_req).await?;
+    let rsp = client.rpc_fn_c2s(rpc_fn_req).await?;
     log::info!("rpc fn 002 rsp: {:?}", rsp);
     Ok(())
 }
