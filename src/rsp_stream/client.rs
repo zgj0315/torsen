@@ -1,11 +1,3 @@
-use hyper::Uri;
-use hyper_util::{client::legacy::connect::HttpConnector, rt::TokioExecutor};
-use std::path::Path;
-use tokio_rustls::rustls::{
-    pki_types::{pem::PemObject, CertificateDer},
-    ClientConfig, RootCertStore,
-};
-use tonic::codegen::CompressionEncoding;
 use torsen::torsen_api::{
     rpc_fn_req, torsen_api_client::TorsenApiClient, HeartbeatReq, ReqFn002, RpcFnReq,
 };
@@ -17,45 +9,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_line_number(true)
         .with_max_level(filter::LevelFilter::INFO)
         .init();
-    let root_path = Path::new(file!())
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap();
-    let tls_path = root_path.join("tls");
-    let cert_file = std::fs::File::open(tls_path.join("sub-ca.crt"))?;
-    let mut cert_buf = std::io::BufReader::new(&cert_file);
-    let mut roots = RootCertStore::empty();
-    let certs = CertificateDer::pem_reader_iter(&mut cert_buf).collect::<Result<Vec<_>, _>>()?;
-    roots.add_parsable_certificates(certs.into_iter());
-    let tls = ClientConfig::builder()
-        .with_root_certificates(roots)
-        .with_no_client_auth();
-
-    let mut http = HttpConnector::new();
-    http.enforce_http(false);
-
-    let connector = tower::ServiceBuilder::new()
-        .layer_fn(move |s| {
-            let tls = tls.clone();
-            hyper_rustls::HttpsConnectorBuilder::new()
-                .with_tls_config(tls)
-                .https_or_http()
-                .enable_http2()
-                .wrap_connector(s)
-        })
-        .map_request(|_| Uri::from_static("https://[::1]:50051"))
-        .service(http);
-
-    let client = hyper_util::client::legacy::Client::builder(TokioExecutor::new()).build(connector);
-
-    let uri = Uri::from_static("https://example.com");
-    let mut client = TorsenApiClient::with_origin(client, uri)
-        .send_compressed(CompressionEncoding::Gzip)
-        .accept_compressed(CompressionEncoding::Gzip);
-
+    let mut client = TorsenApiClient::connect("http://[::1]:50051").await?;
     let agent_id = "agent_id_001";
     let agent_type = "agent_type_001";
     let request = HeartbeatReq {
@@ -81,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         age: 18,
     };
     let rpc_fn_req = RpcFnReq {
-        req: Some(rpc_fn_req::Req::ReqFn002(req_fn_002.into())),
+        req: Some(rpc_fn_req::Req::ReqFn002(req_fn_002)),
     };
     let rsp = client.rpc_fn(rpc_fn_req).await?;
     log::info!("rpc fn 002 rsp: {:?}", rsp);

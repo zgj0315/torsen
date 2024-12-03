@@ -3,13 +3,21 @@ edition = "2021"
 name = "torsen"
 version = "0.1.0"
 
-#[[bin]]
-#name = "torsen-server"
-#path = "src/rsp_stream/server.rs"
+[[bin]]
+name = "torsen-server"
+path = "src/rsp_stream/server.rs"
 
 [[bin]]
 name = "torsen-client"
 path = "src/rsp_stream/client.rs"
+
+#[[bin]]
+#name = "torsen-server-tls"
+#path = "src/rsp_stream_tls/server.rs"
+
+[[bin]]
+name = "torsen-client-tls"
+path = "src/rsp_stream_tls/client.rs"
 
 [[bin]]
 name = "torsen-server-uds"

@@ -1,16 +1,4 @@
-use hyper::server::conn::http2::Builder;
-use hyper_util::rt::{TokioExecutor, TokioIo};
-use hyper_util::service::TowerToHyperService;
-use std::path::Path;
-use std::sync::Arc;
-use tokio::{net::TcpListener, sync::mpsc};
-use tokio_rustls::{
-    rustls::{
-        pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer},
-        ServerConfig,
-    },
-    TlsAcceptor,
-};
+use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{codegen::CompressionEncoding, transport::Server, Request, Response, Status};
 use torsen::torsen_api::rpc_fn_req::Req;
@@ -19,8 +7,6 @@ use torsen::torsen_api::{
     torsen_api_server::{TorsenApi, TorsenApiServer},
     HeartbeatReq, HeartbeatRsp, RpcFnReq, RpcFnRsp, RspFn002,
 };
-use tower::ServiceExt;
-use tower_http::ServiceBuilderExt;
 use tracing_subscriber::filter;
 
 #[derive(Debug, Default)]
@@ -87,88 +73,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_max_level(filter::LevelFilter::INFO)
         .init();
 
-    let root_path = Path::new(file!())
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap();
-    let tls_path = root_path.join("tls");
-
-    let certs = {
-        let cert_file = std::fs::File::open(tls_path.join("torsen-ca.crt"))?;
-        let mut cert_buf = std::io::BufReader::new(&cert_file);
-        CertificateDer::pem_reader_iter(&mut cert_buf).collect::<Result<Vec<_>, _>>()?
-    };
-    let key = {
-        let key_file = std::fs::File::open(tls_path.join("torsen-ca.key"))?;
-        let mut key_buf = std::io::BufReader::new(&key_file);
-        PrivateKeyDer::from_pem_reader(&mut key_buf)?
-    };
-    let mut tls = ServerConfig::builder()
-        .with_no_client_auth()
-        .with_single_cert(certs, key)?;
-    tls.alpn_protocols = vec![b"h2".to_vec()];
     let server = TorsenServer::default();
     let service = TorsenApiServer::new(server)
         .send_compressed(CompressionEncoding::Gzip)
         .accept_compressed(CompressionEncoding::Gzip);
-    let svc = Server::builder().add_service(service).into_service();
 
-    let http = Builder::new(TokioExecutor::new());
-
-    let listener = TcpListener::bind("[::1]:50051").await?;
-    let tls_acceptor = TlsAcceptor::from(Arc::new(tls));
+    let addr = "[::1]:50051".parse().unwrap();
     log::info!("Torsen Server is running...");
-    loop {
-        let (conn, addr) = match listener.accept().await {
-            Ok(incoming) => incoming,
-            Err(e) => {
-                log::error!("Error accepting connection: {}", e);
-                continue;
-            }
-        };
-        let http = http.clone();
-        let tls_acceptor = tls_acceptor.clone();
-        let svc = svc.clone();
-        tokio::spawn(async move {
-            let mut certificates = Vec::new();
-            let conn = tls_acceptor
-                .accept_with(conn, |info| {
-                    if let Some(certs) = info.peer_certificates() {
-                        for cert in certs {
-                            certificates.push(cert.clone());
-                        }
-                    }
-                })
-                .await
-                .unwrap();
-            let svc = tower::ServiceBuilder::new()
-                .add_extension(Arc::new(ConnInfo { addr, certificates }))
-                .service(svc);
-            match http
-                .serve_connection(
-                    TokioIo::new(conn),
-                    TowerToHyperService::new(
-                        svc.map_request(|req: http::Request<_>| req.map(Body::new)),
-                    ),
-                )
-                .await
-            {
-                Ok(r) => {
-                    log::info!("connection: {:?}", r);
-                }
-                Err(e) => {
-                    log::error!("http server error: {:?}", e)
-                }
-            }
-        });
-    }
-}
-
-#[derive(Debug)]
-struct ConnInfo {
-    addr: std::net::SocketAddr,
-    certificates: Vec<CertificateDer<'static>>,
+    Server::builder().add_service(service).serve(addr).await?;
+    Ok(())
 }
