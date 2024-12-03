@@ -8,7 +8,9 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 #[cfg(unix)]
 use tokio_stream::wrappers::UnixListenerStream;
-use tonic::{codegen::CompressionEncoding, transport::Server, Request, Response, Status};
+use tonic::{
+    codegen::CompressionEncoding, transport::Server, Request, Response, Status, Streaming,
+};
 use torsen::torsen_api::rpc_fn_req::Req;
 use torsen::torsen_api::{
     rpc_fn_rsp,
@@ -73,6 +75,15 @@ impl TorsenApi for TorsenServer {
                 }
             },
         }
+    }
+
+    type RpcFnS2cStream = ReceiverStream<Result<RpcFnReq, Status>>;
+
+    async fn rpc_fn_s2c(
+        &self,
+        _request: Request<Streaming<RpcFnRsp>>,
+    ) -> Result<Response<Self::RpcFnS2cStream>, Status> {
+        todo!()
     }
 }
 

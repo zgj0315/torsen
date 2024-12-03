@@ -15,9 +15,9 @@ path = "src/rsp_stream/client.rs"
 #name = "torsen-server-tls"
 #path = "src/rsp_stream_tls/server.rs"
 
-[[bin]]
-name = "torsen-client-tls"
-path = "src/rsp_stream_tls/client.rs"
+#[[bin]]
+#name = "torsen-client-tls"
+#path = "src/rsp_stream_tls/client.rs"
 
 [[bin]]
 name = "torsen-server-uds"
@@ -30,6 +30,7 @@ path = "src/uds/client.rs"
 [dependencies]
 http = "1"
 # http-body = "1.0"
+async-stream = "0.3"
 hyper = "1"
 hyper-rustls = { version = "0.27", features = ["http2"] }
 hyper-util = { version = "0.1", features = ["tokio"] }

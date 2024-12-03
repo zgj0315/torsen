@@ -4,6 +4,7 @@ package torsen.api;
 service TorsenApi {
   rpc Heartbeat(HeartbeatReq) returns (stream HeartbeatRsp) {}
   rpc RpcFnC2s(RpcFnReq) returns (RpcFnRsp) {}
+  rpc RpcFnS2c(stream RpcFnRsp) returns (stream RpcFnReq) {}
 }
 
 // 心跳消息请求结构体

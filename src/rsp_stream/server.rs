@@ -1,9 +1,12 @@
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tonic::{codegen::CompressionEncoding, transport::Server, Request, Response, Status};
+use tokio_stream::StreamExt;
+use tonic::{
+    codegen::CompressionEncoding, transport::Server, Request, Response, Status, Streaming,
+};
 use torsen::torsen_api::rpc_fn_req::Req;
 use torsen::torsen_api::{
-    rpc_fn_rsp,
+    rpc_fn_req, rpc_fn_rsp,
     torsen_api_server::{TorsenApi, TorsenApiServer},
     HeartbeatReq, HeartbeatRsp, RpcFnReq, RpcFnRsp, RspFn002,
 };
@@ -63,6 +66,39 @@ impl TorsenApi for TorsenServer {
                 }
             },
         }
+    }
+
+    type RpcFnS2cStream = ReceiverStream<Result<RpcFnReq, Status>>;
+
+    async fn rpc_fn_s2c(
+        &self,
+        request: Request<Streaming<RpcFnRsp>>,
+    ) -> Result<Response<Self::RpcFnS2cStream>, Status> {
+        // 建立连接，进入函数，开始下发指令
+        let (tx, rx) = mpsc::channel(10);
+        let req_fn_001 = "this is req fn 001 content from server";
+        let rpc_fn_req = RpcFnReq {
+            req: Some(rpc_fn_req::Req::ReqFn001(req_fn_001.into())),
+        };
+        tx.send(Ok(rpc_fn_req)).await.unwrap();
+
+        // 启动接收返回的协程
+        let mut in_stream = request.into_inner();
+        tokio::spawn(async move {
+            while let Some(result) = in_stream.next().await {
+                match result {
+                    Ok(rpc_fn_rsp) => {
+                        log::info!("get rsp from client, rpc_fn_rsp: {:?}", rpc_fn_rsp);
+                    }
+                    Err(e) => {
+                        log::error!("err: {}", e);
+                    }
+                }
+            }
+        });
+        log::info!("ready to receive rsp and send cmd to client");
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        Ok(Response::new(ReceiverStream::new(rx)))
     }
 }
 
