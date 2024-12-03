@@ -9,9 +9,11 @@ use tokio_rustls::{
 };
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{codegen::CompressionEncoding, transport::Server, Request, Response, Status};
+use torsen::torsen_api::rpc_fn_req::Req;
 use torsen::torsen_api::{
+    rpc_fn_rsp,
     torsen_api_server::{TorsenApi, TorsenApiServer},
-    HeartbeatReq, HeartbeatRsp,
+    HeartbeatReq, HeartbeatRsp, RpcFnReq, RpcFnRsp, RspFn002,
 };
 use tower_http::ServiceBuilderExt;
 use tracing_subscriber::filter;
@@ -47,13 +49,37 @@ impl TorsenApi for TorsenServer {
         });
         Ok(Response::new(ReceiverStream::new(rx)))
     }
+
+    async fn rpc_fn(&self, request: Request<RpcFnReq>) -> Result<Response<RpcFnRsp>, Status> {
+        match request.into_inner().req {
+            None => {
+                return Ok(Response::new(RpcFnRsp { rsp: None }));
+            }
+            Some(req) => match req {
+                Req::ReqFn001(req_fn_001) => {
+                    let rsp_fn_001 = format!("get req: {}", req_fn_001);
+                    let rpc_fn_rsp = RpcFnRsp {
+                        rsp: Some(rpc_fn_rsp::Rsp::RspFn001(rsp_fn_001)),
+                    };
+                    return Ok(Response::new(rpc_fn_rsp));
+                }
+                Req::ReqFn002(req_fn_002) => {
+                    let msg = format!("get req: {}, {}", req_fn_002.name, req_fn_002.age);
+                    let rpc_fn_rsp = RpcFnRsp {
+                        rsp: Some(rpc_fn_rsp::Rsp::RspFn002(RspFn002 { msg })),
+                    };
+                    return Ok(Response::new(rpc_fn_rsp));
+                }
+            },
+        }
+    }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
         .with_line_number(true)
-        .with_max_level(filter::LevelFilter::TRACE)
+        .with_max_level(filter::LevelFilter::INFO)
         .init();
 
     let root_path = Path::new(file!())

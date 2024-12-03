@@ -2,14 +2,16 @@ use hyper::{client::HttpConnector, Uri};
 use std::path::Path;
 use tokio_rustls::rustls::{ClientConfig, RootCertStore};
 use tonic::codegen::CompressionEncoding;
-use torsen::torsen_api::{torsen_api_client::TorsenApiClient, HeartbeatReq};
+use torsen::torsen_api::{
+    rpc_fn_req, torsen_api_client::TorsenApiClient, HeartbeatReq, ReqFn002, RpcFnReq,
+};
 use tracing_subscriber::filter;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
         .with_line_number(true)
-        .with_max_level(filter::LevelFilter::TRACE)
+        .with_max_level(filter::LevelFilter::INFO)
         .init();
     let root_path = Path::new(file!())
         .parent()
@@ -49,18 +51,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = TorsenApiClient::with_origin(client, uri)
         .send_compressed(CompressionEncoding::Gzip)
         .accept_compressed(CompressionEncoding::Gzip);
-    for i in 0..3 {
-        let agent_id = format!("agent_id_{}", i);
-        let agent_type = format!("agent_type_{}", i);
-        let request = HeartbeatReq {
-            agent_id,
-            agent_type,
-        };
-        let mut stream = client.heartbeat(request).await?.into_inner();
-        while let Some(feature) = stream.message().await? {
-            log::info!("{:?}", feature);
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+    let agent_id = "agent_id_001";
+    let agent_type = "agent_type_001";
+    let request = HeartbeatReq {
+        agent_id: agent_id.to_string(),
+        agent_type: agent_type.to_string(),
+    };
+    let mut stream = client.heartbeat(request).await?.into_inner();
+    while let Some(feature) = stream.message().await? {
+        log::info!("heartbeat rsp: {:?}", feature);
     }
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+    let req_fn_001 = "this is req fn 001 content";
+    let rpc_fn_req = RpcFnReq {
+        req: Some(rpc_fn_req::Req::ReqFn001(req_fn_001.into())),
+    };
+    let rsp = client.rpc_fn(rpc_fn_req).await?;
+    log::info!("rpc fn 001 rsp: {:?}", rsp);
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+    let req_fn_002 = ReqFn002 {
+        name: "this is name content".to_string(),
+        age: 18,
+    };
+    let rpc_fn_req = RpcFnReq {
+        req: Some(rpc_fn_req::Req::ReqFn002(req_fn_002.into())),
+    };
+    let rsp = client.rpc_fn(rpc_fn_req).await?;
+    log::info!("rpc fn 002 rsp: {:?}", rsp);
     Ok(())
 }
