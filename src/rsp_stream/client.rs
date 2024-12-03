@@ -1,23 +1,25 @@
 use hyper::{client::HttpConnector, Uri};
+use std::path::Path;
 use tokio_rustls::rustls::{ClientConfig, RootCertStore};
 use tonic::codegen::CompressionEncoding;
 use torsen::torsen_api::{torsen_api_client::TorsenApiClient, HeartbeatReq};
+use tracing_subscriber::filter;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let format = tracing_subscriber::fmt::format()
-        .with_level(true)
-        .with_target(true)
-        .with_thread_ids(true)
-        .with_thread_names(true);
-
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::TRACE)
-        .with_writer(std::io::stdout)
-        .with_ansi(true)
-        .event_format(format)
+        .with_line_number(true)
+        .with_max_level(filter::LevelFilter::TRACE)
         .init();
-    let cert_file = std::fs::File::open("tls/sub-ca.crt")?;
+    let root_path = Path::new(file!())
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
+    let tls_path = root_path.join("tls");
+    let cert_file = std::fs::File::open(tls_path.join("sub-ca.crt"))?;
     let mut cert_buf = std::io::BufReader::new(&cert_file);
     let mut roots = RootCertStore::empty();
     let certs = rustls_pemfile::certs(&mut cert_buf)?;

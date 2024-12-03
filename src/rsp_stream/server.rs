@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::sync::Arc;
 
 use hyper::server::conn::Http;
@@ -13,6 +14,7 @@ use torsen::torsen_api::{
     HeartbeatReq, HeartbeatRsp,
 };
 use tower_http::ServiceBuilderExt;
+use tracing_subscriber::filter;
 
 #[derive(Debug, Default)]
 struct TorsenServer {}
@@ -49,21 +51,22 @@ impl TorsenApi for TorsenServer {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let format = tracing_subscriber::fmt::format()
-        .with_level(true)
-        .with_target(true)
-        .with_thread_ids(true)
-        .with_thread_names(true);
-
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::TRACE)
-        .with_writer(std::io::stdout)
-        .with_ansi(true)
-        .event_format(format)
+        .with_line_number(true)
+        .with_max_level(filter::LevelFilter::TRACE)
         .init();
 
+    let root_path = Path::new(file!())
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
+    let tls_path = root_path.join("tls");
+
     let certs = {
-        let cert_file = std::fs::File::open("tls/torsen-ca.crt")?;
+        let cert_file = std::fs::File::open(tls_path.join("torsen-ca.crt"))?;
         let mut cert_buf = std::io::BufReader::new(&cert_file);
         rustls_pemfile::certs(&mut cert_buf)?
             .into_iter()
@@ -71,7 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .collect()
     };
     let key = {
-        let key_file = std::fs::File::open("tls/torsen-ca.key")?;
+        let key_file = std::fs::File::open(tls_path.join("torsen-ca.key"))?;
         let mut key_buf = std::io::BufReader::new(&key_file);
         rustls_pemfile::pkcs8_private_keys(&mut key_buf)?
             .into_iter()

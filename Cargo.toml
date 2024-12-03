@@ -5,25 +5,24 @@ version = "0.1.0"
 
 [[bin]]
 name = "torsen-server"
-path = "src/server/server.rs"
+path = "src/rsp_stream/server.rs"
 
 [[bin]]
 name = "torsen-client"
-path = "src/client/client.rs"
+path = "src/rsp_stream/client.rs"
 
 [dependencies]
 hyper = "0.14"
-hyper-rustls = {version = "0.23", features = ["http2"]}
+hyper-rustls = { version = "0.23", features = ["http2"] }
 log = "0.4"
 prost = "0.11"
 rustls-pemfile = "1.0"
-tokio = {version = "1.22", features = ["rt-multi-thread"]}
+tokio = { version = "1.22", features = ["rt-multi-thread"] }
 tokio-rustls = "0.23"
 tokio-stream = "0.1"
-tonic = {version = "0.8", features = ["gzip"]}
+tonic = { version = "0.8", features = ["gzip"] }
 tower = "0.4"
-tower-http = {version = "0.3", features = ["add-extension", "util"]}
-tracing = "0.1"
+tower-http = { version = "0.3", features = ["add-extension", "util"] }
 tracing-subscriber = "0.3"
 
 [build-dependencies]
