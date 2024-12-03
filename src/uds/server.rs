@@ -1,17 +1,13 @@
-use hyper::server::conn::http2::Builder;
-use hyper_util::rt::{TokioExecutor, TokioIo};
-use hyper_util::service::TowerToHyperService;
+#![cfg_attr(not(unix), allow(unused_imports))]
+
+use std::fs;
 use std::path::Path;
-use std::sync::Arc;
-use tokio::{net::TcpListener, sync::mpsc};
-use tokio_rustls::{
-    rustls::{
-        pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer},
-        ServerConfig,
-    },
-    TlsAcceptor,
-};
+#[cfg(unix)]
+use tokio::net::UnixListener;
+use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
+#[cfg(unix)]
+use tokio_stream::wrappers::UnixListenerStream;
 use tonic::{codegen::CompressionEncoding, transport::Server, Request, Response, Status};
 use torsen::torsen_api::rpc_fn_req::Req;
 use torsen::torsen_api::{
@@ -19,8 +15,6 @@ use torsen::torsen_api::{
     torsen_api_server::{TorsenApi, TorsenApiServer},
     HeartbeatReq, HeartbeatRsp, RpcFnReq, RpcFnRsp, RspFn002,
 };
-use tower::ServiceExt;
-use tower_http::ServiceBuilderExt;
 use tracing_subscriber::filter;
 
 #[derive(Debug, Default)]
@@ -62,6 +56,7 @@ impl TorsenApi for TorsenServer {
             }
             Some(req) => match req {
                 Req::ReqFn001(req_fn_001) => {
+                    log::info!("ReqFn001: {}", req_fn_001);
                     let rsp_fn_001 = format!("get req: {}", req_fn_001);
                     let rpc_fn_rsp = RpcFnRsp {
                         rsp: Some(rpc_fn_rsp::Rsp::RspFn001(rsp_fn_001)),
@@ -69,6 +64,7 @@ impl TorsenApi for TorsenServer {
                     return Ok(Response::new(rpc_fn_rsp));
                 }
                 Req::ReqFn002(req_fn_002) => {
+                    log::info!("ReqFn001: {:?}", req_fn_002);
                     let msg = format!("get req: {}, {}", req_fn_002.name, req_fn_002.age);
                     let rpc_fn_rsp = RpcFnRsp {
                         rsp: Some(rpc_fn_rsp::Rsp::RspFn002(RspFn002 { msg })),
@@ -80,6 +76,7 @@ impl TorsenApi for TorsenServer {
     }
 }
 
+#[cfg(unix)]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
@@ -94,81 +91,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap()
         .parent()
         .unwrap();
-    let tls_path = root_path.join("tls");
-
-    let certs = {
-        let cert_file = std::fs::File::open(tls_path.join("torsen-ca.crt"))?;
-        let mut cert_buf = std::io::BufReader::new(&cert_file);
-        CertificateDer::pem_reader_iter(&mut cert_buf).collect::<Result<Vec<_>, _>>()?
-    };
-    let key = {
-        let key_file = std::fs::File::open(tls_path.join("torsen-ca.key"))?;
-        let mut key_buf = std::io::BufReader::new(&key_file);
-        PrivateKeyDer::from_pem_reader(&mut key_buf)?
-    };
-    let mut tls = ServerConfig::builder()
-        .with_no_client_auth()
-        .with_single_cert(certs, key)?;
-    tls.alpn_protocols = vec![b"h2".to_vec()];
+    let uds_path = root_path.join("uds");
+    fs::create_dir_all(&uds_path)?;
+    let rpc_fn_path = uds_path.join("rpc_fn");
+    fs::remove_file(&rpc_fn_path)?;
+    let uds = UnixListener::bind(rpc_fn_path)?;
+    let uds_stream = UnixListenerStream::new(uds);
     let server = TorsenServer::default();
     let service = TorsenApiServer::new(server)
         .send_compressed(CompressionEncoding::Gzip)
         .accept_compressed(CompressionEncoding::Gzip);
-    let svc = Server::builder().add_service(service).into_service();
-
-    let http = Builder::new(TokioExecutor::new());
-
-    let listener = TcpListener::bind("[::1]:50051").await?;
-    let tls_acceptor = TlsAcceptor::from(Arc::new(tls));
-    log::info!("Torsen Server is running...");
-    loop {
-        let (conn, addr) = match listener.accept().await {
-            Ok(incoming) => incoming,
-            Err(e) => {
-                log::error!("Error accepting connection: {}", e);
-                continue;
-            }
-        };
-        let http = http.clone();
-        let tls_acceptor = tls_acceptor.clone();
-        let svc = svc.clone();
-        tokio::spawn(async move {
-            let mut certificates = Vec::new();
-            let conn = tls_acceptor
-                .accept_with(conn, |info| {
-                    if let Some(certs) = info.peer_certificates() {
-                        for cert in certs {
-                            certificates.push(cert.clone());
-                        }
-                    }
-                })
-                .await
-                .unwrap();
-            let svc = tower::ServiceBuilder::new()
-                .add_extension(Arc::new(ConnInfo { addr, certificates }))
-                .service(svc);
-            match http
-                .serve_connection(
-                    TokioIo::new(conn),
-                    TowerToHyperService::new(
-                        svc.map_request(|req: http::Request<_>| req.map(Body::new)),
-                    ),
-                )
-                .await
-            {
-                Ok(r) => {
-                    log::info!("connection: {:?}", r);
-                }
-                Err(e) => {
-                    log::error!("http server error: {:?}", e)
-                }
-            }
-        });
-    }
+    Server::builder()
+        .add_service(service)
+        .serve_with_incoming(uds_stream)
+        .await?;
+    Ok(())
 }
 
-#[derive(Debug)]
-struct ConnInfo {
-    addr: std::net::SocketAddr,
-    certificates: Vec<CertificateDer<'static>>,
+#[cfg(not(unix))]
+fn main() {
+    panic!("The `uds` example only works on unix systems!");
 }

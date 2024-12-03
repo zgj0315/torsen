@@ -3,27 +3,38 @@ edition = "2021"
 name = "torsen"
 version = "0.1.0"
 
-[[bin]]
-name = "torsen-server"
-path = "src/rsp_stream/server.rs"
+#[[bin]]
+#name = "torsen-server"
+#path = "src/rsp_stream/server.rs"
 
 [[bin]]
 name = "torsen-client"
 path = "src/rsp_stream/client.rs"
 
+[[bin]]
+name = "torsen-server-uds"
+path = "src/uds/server.rs"
+
+[[bin]]
+name = "torsen-client-uds"
+path = "src/uds/client.rs"
+
 [dependencies]
-hyper = "0.14"
-hyper-rustls = { version = "0.23", features = ["http2"] }
+http = "1"
+# http-body = "1.0"
+hyper = "1"
+hyper-rustls = { version = "0.27", features = ["http2"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
 log = "0.4"
-prost = "0.11"
-rustls-pemfile = "1.0"
-tokio = { version = "1.22", features = ["rt-multi-thread"] }
-tokio-rustls = "0.23"
-tokio-stream = "0.1"
-tonic = { version = "0.8", features = ["gzip"] }
-tower = "0.4"
-tower-http = { version = "0.3", features = ["add-extension", "util"] }
+prost = "0.13"
+rustls-pemfile = "2.2"
+tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }
+tokio-rustls = "0.26"
+tokio-stream = { version = "0.1", features = ["net"] }
+tonic = { version = "0.12", features = ["gzip", "transport"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["add-extension", "util"] }
 tracing-subscriber = "0.3"
 
 [build-dependencies]
-tonic-build = "0.8"
+tonic-build = "0.12"

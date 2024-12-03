@@ -1,6 +1,10 @@
-use hyper::{client::HttpConnector, Uri};
+use hyper::Uri;
+use hyper_util::{client::legacy::connect::HttpConnector, rt::TokioExecutor};
 use std::path::Path;
-use tokio_rustls::rustls::{ClientConfig, RootCertStore};
+use tokio_rustls::rustls::{
+    pki_types::{pem::PemObject, CertificateDer},
+    ClientConfig, RootCertStore,
+};
 use tonic::codegen::CompressionEncoding;
 use torsen::torsen_api::{
     rpc_fn_req, torsen_api_client::TorsenApiClient, HeartbeatReq, ReqFn002, RpcFnReq,
@@ -24,10 +28,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cert_file = std::fs::File::open(tls_path.join("sub-ca.crt"))?;
     let mut cert_buf = std::io::BufReader::new(&cert_file);
     let mut roots = RootCertStore::empty();
-    let certs = rustls_pemfile::certs(&mut cert_buf)?;
-    roots.add_parsable_certificates(&certs);
+    let certs = CertificateDer::pem_reader_iter(&mut cert_buf).collect::<Result<Vec<_>, _>>()?;
+    roots.add_parsable_certificates(certs.into_iter());
     let tls = ClientConfig::builder()
-        .with_safe_defaults()
         .with_root_certificates(roots)
         .with_no_client_auth();
 
@@ -46,7 +49,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map_request(|_| Uri::from_static("https://[::1]:50051"))
         .service(http);
 
-    let client = hyper::Client::builder().build(connector);
+    let client = hyper_util::client::legacy::Client::builder(TokioExecutor::new()).build(connector);
+
     let uri = Uri::from_static("https://example.com");
     let mut client = TorsenApiClient::with_origin(client, uri)
         .send_compressed(CompressionEncoding::Gzip)
