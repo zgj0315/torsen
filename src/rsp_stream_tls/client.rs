@@ -81,7 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         age: 18,
     };
     let rpc_fn_req = RpcFnReq {
-        req: Some(rpc_fn_req::Req::ReqFn002(req_fn_002.into())),
+        req: Some(rpc_fn_req::Req::ReqFn002(req_fn_002)),
     };
     let rsp = client.rpc_fn(rpc_fn_req).await?;
     log::info!("rpc fn 002 rsp: {:?}", rsp);
