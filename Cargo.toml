@@ -22,7 +22,7 @@ tokio-rustls = "0.23"
 tokio-stream = "0.1"
 tonic = {version = "0.8", features = ["gzip"]}
 tower = "0.4"
-tower-http = {version = "0.3", features = ["add-extension"]}
+tower-http = {version = "0.3", features = ["add-extension", "util"]}
 tracing = "0.1"
 tracing-subscriber = "0.3"
 
